@@ -1,0 +1,192 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZekaBot - Yapay Zekâ Asistanı</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#080b18;color:#f4f6ff;min-height:100vh}
+header{padding:22px;text-align:center;border-bottom:1px solid #252b48;background:#10152a}
+.logo{font-size:29px;font-weight:bold;background:linear-gradient(90deg,#62dcff,#b58cff);color:transparent;background-clip:text}
+header p{color:#a9b2d0;font-size:14px}
+main{max-width:850px;margin:25px auto;padding:0 15px}
+.panel{background:#11172b;border:1px solid #293251;border-radius:16px;padding:16px;margin-bottom:16px}
+label{display:block;margin-bottom:9px;font-size:14px;font-weight:bold}
+input,textarea{width:100%;padding:13px;border:1px solid #303b60;background:#090e20;color:white;border-radius:10px;font-size:15px;outline:none}
+input:focus,textarea:focus{border-color:#7d8cff}
+small{display:block;color:#a9b2d0;line-height:1.6;margin-top:9px}
+button{border:0;border-radius:10px;padding:12px 17px;background:linear-gradient(90deg,#4678ff,#8b5cf6);color:white;font-weight:bold;cursor:pointer}
+button:disabled{opacity:.55;cursor:wait}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}
+.secondary{background:#252e4a}
+#chat{min-height:250px;max-height:52vh;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.msg{padding:13px 15px;border-radius:13px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.user{background:#263c78;align-self:flex-end;max-width:90%}
+.bot{background:#1a2340;border:1px solid #303b60;align-self:flex-start;max-width:100%;width:100%}
+.status{font-size:13px;color:#b7c1df;margin-top:10px;white-space:pre-wrap}
+footer{text-align:center;color:#8791b1;padding:25px;font-size:12px}
+#question{min-height:90px;resize:vertical}
+.notice{color:#ffd58a;font-size:13px;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">✦ ZekaBot</div>
+  <p>Senin Türkçe yapay zekâ asistanın</p>
+</header>
+
+<main>
+  <section class="panel">
+    <label for="apiKey">1. Gemini API anahtarın</label>
+    <input id="apiKey" type="password" placeholder="API anahtarını buraya gir" autocomplete="off">
+    <div class="actions">
+      <button id="toggleKey" class="secondary" type="button">Anahtarı göster</button>
+      <button id="clearKey" class="secondary" type="button">Anahtarı temizle</button>
+      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:#8ccfff;align-self:center">API anahtarı al ↗</a>
+    </div>
+    <small>Anahtar bu sayfada hafızada tutulur; koda kaydedilmez. Kendi anahtarını kimseyle paylaşma.</small>
+    <p class="notice">Bu sürümde mesajlar, seçtiğin Google Gemini modeline gönderilir. API kullanımında ücretsiz kota ve kullanım koşulları geçerli olabilir.</p>
+  </section>
+
+  <section class="panel">
+    <label>Sohbet</label>
+    <div id="chat" aria-live="polite">
+      <div class="msg bot">Merhaba! Ben ZekaBot. 😊 Bana bir soru sorabilirsin. Önce yukarıya API anahtarını gir.</div>
+    </div>
+    <div id="status" class="status">Hazır.</div>
+  </section>
+
+  <section class="panel">
+    <label for="question">2. Mesajın</label>
+    <textarea id="question" placeholder="Örneğin: Yapay zekâ nedir?"></textarea>
+    <div class="actions">
+      <button id="send">➤ Mesaj gönder</button>
+      <button id="newChat" class="secondary">Yeni sohbet</button>
+    </div>
+    <small>Enter ile gönder, Shift + Enter ile yeni satır ekle.</small>
+  </section>
+</main>
+
+<footer>ZekaBot · Kişisel yapay zekâ projen</footer>
+
+<script>
+const keyInput = document.getElementById("apiKey");
+const questionInput = document.getElementById("question");
+const chat = document.getElementById("chat");
+const statusBox = document.getElementById("status");
+const sendButton = document.getElementById("send");
+
+let history = [];
+
+document.getElementById("toggleKey").onclick = () => {
+  keyInput.type = keyInput.type === "password" ? "text" : "password";
+  document.getElementById("toggleKey").textContent =
+    keyInput.type === "password" ? "Anahtarı göster" : "Anahtarı gizle";
+};
+
+document.getElementById("clearKey").onclick = () => {
+  keyInput.value = "";
+  statusBox.textContent = "API anahtarı temizlendi.";
+};
+
+function addMessage(text, who) {
+  const el = document.createElement("div");
+  el.className = "msg " + who;
+  el.textContent = text;
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+  return el;
+}
+
+async function sendMessage() {
+  const apiKey = keyInput.value.trim();
+  const question = questionInput.value.trim();
+
+  if (!apiKey) {
+    statusBox.textContent = "Önce Gemini API anahtarını gir.";
+    keyInput.focus();
+    return;
+  }
+  if (!question) {
+    statusBox.textContent = "Lütfen bir mesaj yaz.";
+    questionInput.focus();
+    return;
+  }
+
+  addMessage(question, "user");
+  questionInput.value = "";
+  history.push({ role: "user", parts: [{ text: question }] });
+
+  sendButton.disabled = true;
+  statusBox.textContent = "ZekaBot düşünüyor...";
+  const answerBubble = addMessage("Yanıt hazırlanıyor...", "bot");
+
+  try {
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey
+        },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{
+              text: "Sen ZekaBot adında yardımsever bir Türkçe yapay zekâ asistanısın. Türkçe, açık ve anlaşılır cevap ver. Bilmediğin konularda dürüst ol."
+            }]
+          },
+          contents: history,
+          generationConfig: { temperature: 0.7, maxOutputTokens: 1200 }
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || "API isteği başarısız oldu.");
+    }
+
+    const answer = data.candidates?.[0]?.content?.parts
+      ?.map(part => part.text || "")
+      .join("")
+      .trim();
+
+    if (!answer) throw new Error("Yanıt gelmedi. Tekrar deneyebilirsin.");
+
+    answerBubble.textContent = answer;
+    history.push({ role: "model", parts: [{ text: answer }] });
+    statusBox.textContent = "Yanıt hazır.";
+  } catch (error) {
+    answerBubble.textContent = "Bir hata oluştu: " + error.message;
+    statusBox.textContent =
+      "API anahtarını, internet bağlantını ve kullanım kotanı kontrol et.";
+    history.pop();
+  } finally {
+    sendButton.disabled = false;
+    questionInput.focus();
+    chat.scrollTop = chat.scrollHeight;
+  }
+}
+
+sendButton.addEventListener("click", sendMessage);
+
+questionInput.addEventListener("keydown", event => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    sendMessage();
+  }
+});
+
+document.getElementById("newChat").onclick = () => {
+  history = [];
+  chat.replaceChildren();
+  addMessage("Yeni sohbet başladı! Bana ne sormak istersin?", "bot");
+  statusBox.textContent = "Yeni sohbet hazır.";
+};
+</script>
+</body>
+</html>
